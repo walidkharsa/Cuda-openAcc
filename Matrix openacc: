@@ -1,0 +1,59 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <openacc.h>
+
+#define N 2048  // Define the size of the matrix
+
+// Function to initialize the matrix with some data
+void initializeMatrix(int *mat, int n) {
+    for (int i = 0; i < n * n; ++i) {
+        mat[i] = rand() % 100;  // Example: random numbers between 0 and 99
+    }
+}
+
+// OpenACC does not require a separate function for the kernel
+// The parallel loop constructs are used directly in the main function
+int main() {
+    int *a, *b, *c;
+    int size = N * N * sizeof(int);
+
+    a = (int *)malloc(size);
+    b = (int *)malloc(size);
+    c = (int *)malloc(size);
+
+    // Initialize matrices with data
+    initializeMatrix(a, N);
+    initializeMatrix(b, N);
+
+    // Start timing
+    double start = omp_get_wtime();
+
+    // OpenACC directives to perform matrix multiplication on the GPU
+    #pragma acc data copyin(a[0:N*N], b[0:N*N]) copy(c[0:N*N])
+    {
+        #pragma acc kernels
+        #pragma acc loop independent
+        for (int row = 0; row < N; ++row) {
+            #pragma acc loop independent
+            for (int col = 0; col < N; ++col) {
+                int sum = 0;
+                #pragma acc loop reduction(+:sum)
+                for (int k = 0; k < N; ++k) {
+                    sum += a[row * N + k] * b[k * N + col];
+                }
+                c[row * N + col] = sum;
+            }
+        }
+    }
+
+    // End timing
+    double end = omp_get_wtime();
+    printf("Time for the kernel: %f s\n", end - start);
+
+    // Free the memory
+    free(a);
+    free(b);
+    free(c);
+
+    return 0;
+}
