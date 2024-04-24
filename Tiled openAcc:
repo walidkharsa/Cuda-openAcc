@@ -1,0 +1,55 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <openacc.h>
+
+#define N 2048
+#define TILE_WIDTH 16
+
+void initializeMatrix(int *mat, int size) {
+    for(int i = 0; i < size; i++) {
+        mat[i] = rand() % 100;  // Initialize with some values
+    }
+}
+
+int main() {
+    int *a, *b, *c;
+    int size = N * N * sizeof(int);
+
+    // Allocate memory for matrices
+    a = (int *)malloc(size);
+    b = (int *)malloc(size);
+    c = (int *)malloc(size);
+
+    // Initialize matrices with some values
+    initializeMatrix(a, N * N);
+    initializeMatrix(b, N * N);
+
+    // Start timing
+    double start = omp_get_wtime();
+
+    // Compute matrix multiplication using OpenACC
+    #pragma acc data copyin(a[0:N*N], b[0:N*N]) copy(c[0:N*N])
+    {
+        #pragma acc parallel loop tile(TILE_WIDTH, TILE_WIDTH)
+        for (int row = 0; row < N; ++row) {
+            for (int col = 0; col < N; ++col) {
+                int sum = 0;
+                for (int k = 0; k < N; ++k) {
+                    sum += a[row * N + k] * b[k * N + col];
+                }
+                c[row * N + col] = sum;
+            }
+        }
+    }
+
+    // Stop timing
+    double end = omp_get_wtime();
+    printf("Time for the OpenACC kernel: %f s\n", end - start);
+
+    // Free memory
+    free(a);
+    free(b);
+    free(c);
+
+    return 0;
+}
